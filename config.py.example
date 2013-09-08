@@ -1,0 +1,50 @@
+#!/usr/bin/env python
+
+import collections
+
+
+# account_id is required when rules to foreign security groups can exist
+
+def get_ec2_conf():
+    AWS_ACCESS_KEY_ID = 'AAAAAAAAAAAAAAA'
+    AWS_SECRET_ACCESS_KEY = 'aaaaaaaaaaaaaaa'
+    ACCOUNT_ID = '1234567890'
+
+    return {'AWS_ACCESS_KEY_ID': AWS_ACCESS_KEY_ID,
+            'AWS_SECRET_ACCESS_KEY': AWS_SECRET_ACCESS_KEY,
+            'ACCOUNT_ID': ACCOUNT_ID}
+
+
+# create all rule declarations in this order:
+# "ip_protocol",
+# "from_port",
+# "to_port",
+# "cidr_ip",
+# "src_group_name"
+
+SecurityGroupRule = collections.namedtuple("SecurityGroupRule",
+                                          ["ip_protocol",
+                                           "from_port",
+                                           "to_port",
+                                           "cidr_ip",
+                                           "src_group_name"])
+
+
+WEB_RULES = [
+    SecurityGroupRule("tcp", "22", "22", None, "otheraccount/sg-id"),
+    SecurityGroupRule("tcp", "443", "443", "0.0.0.0/0", None),
+]
+
+BACKEND_RULES = [
+   SecurityGroupRule("tcp", "22", "22", None, "otheraccount/sg-id"),
+   SecurityGroupRule("tcp", "8080", "8080", "0.0.0.0/0", "web"),
+   SecurityGroupRule("tcp", "9080", "9080", "0.0.0.0/0", "web"),
+   SecurityGroupRule("tcp", "10080", "10080", "0.0.0.0/0", "web"),
+   SecurityGroupRule("tcp", "12080", "12080", "0.0.0.0/0", "web"),
+]
+
+# list in creation order otherwise it will fail
+SECURITY_GROUPS = [
+    ("web", "Sparta web nodes", WEB_RULES),
+    ("backend", "Sparta backend services", BACKEND_RULES)
+]
