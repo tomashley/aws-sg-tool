@@ -6,12 +6,15 @@ inspired by https://gist.github.com/steder/1498451
 This python script contains an SecGroup class to idempotently create
 security groups in AWS from a json rules file and cli options,
 or a config file
+
 """
 
 from boto.ec2 import connect_to_region
 import json
 import re
 import config
+from pprint import pprint
+import sys
 
 
 class SecGroup:
@@ -78,8 +81,7 @@ class SecGroup:
                                     src_security_group_owner_id=foreign_owner_id,
                                     ip_protocol=rule.ip_protocol,
                                     from_port=rule.from_port,
-                                    to_port=rule.to_port,
-                                    cidr_ip=rule.cidr_ip)
+                                    to_port=rule.to_port)
             else:
                 # local sg, use the group ref passed in
                 group.authorize(ip_protocol=rule.ip_protocol,
@@ -102,56 +104,62 @@ class SecGroup:
 
     def revoke(self, group, rule):
         """ remove a rule from a security group """
-        # return self.modify_sg(group, rule, revoke=True)
-        # turn this off for now
-        pass
+        return self.modify_sg(group, rule, revoke=True)
 
     def update_security_group(self, group, expected_rules):
         """
         """
         print "updating group %s..." % (group.name)
-        import pprint
         print "Expected Rules:"
-        pprint.pprint(expected_rules)
+        pprint(expected_rules)
 
         current_rules = []
         for rule in group.rules:
-            if not rule.grants[0].cidr_ip:
-                # this is rule to permit in another security group
-                # we need the owner id here in case it is a foreign rule
-                if rule.grants[0].owner_id != self.account_id:
-                    # foreign SG
-                    grant_name = "%s/%s" % (rule.grants[0].owner_id,
-                                            rule.grants[0].group_id)
-                else:
-                    grant_name = rule.grants[0].name
-                current_rule = \
-                    self.SecurityGroupRule(rule.ip_protocol,
-                                           rule.from_port,
-                                           rule.to_port,
-                                           "0.0.0.0/0",
-                                           grant_name)
-            else:
-                # this is a rule to allow in an ip or network
-                current_rule = \
-                    self.SecurityGroupRule(rule.ip_protocol,
-                                           rule.from_port,
-                                           rule.to_port,
-                                           rule.grants[0].cidr_ip,
-                                           None)
 
-            if current_rule not in expected_rules:
-                self.revoke(group, current_rule)
-            else:
-                current_rules.append(current_rule)
+            for grant in rule.grants:
+                # print rule.grants[0]
+                if not grant.cidr_ip:
+                    # print "rule permits in another SG"
+                    # this is rule to permit in another security group
+                    # we need the owner id here in case it is a foreign rule
+                    if grant.owner_id != self.account_id:
+                        # print "Foreign SG"
+                        # foreign SG
+                        grant_name = "%s/%s" % (grant.owner_id,
+                                                grant.group_id)
+                    else:
+                        # print "local SG"
+                        grant_name = grant.name
+                    current_rule = \
+                        self.SecurityGroupRule(rule.ip_protocol,
+                                               rule.from_port,
+                                               rule.to_port,
+                                               "0.0.0.0/0",
+                                               grant_name)
+                else:
+                    # print "Rule allows in network/ip"
+                    # this is a rule to allow in an ip or network
+                    current_rule = \
+                        self.SecurityGroupRule(rule.ip_protocol,
+                                               rule.from_port,
+                                               rule.to_port,
+                                               grant.cidr_ip,
+                                               None)
+
+                if current_rule not in expected_rules:
+                    # print "rule needs revoking"
+                    self.revoke(group, current_rule)
+                else:
+                    # print "rule exists"
+                    current_rules.append(current_rule)
 
         print "Current Rules:"
-        pprint.pprint(current_rules)
+        pprint(current_rules)
 
         for rule in expected_rules:
             if rule not in current_rules:
-                # print "passing in rule"
-                # pprint.pprint(rule)
+                print "passing in rule"
+                pprint(rule)
                 self.authorize(group, rule)
 
     def list_sgs_and_rules(self, group_list=""):
@@ -161,6 +169,7 @@ class SecGroup:
         current_rules = {}
         for group in groups:
             current_rules[group.name] = []
+            print len(group.rules)
             for rule in group.rules:
                 if not rule.grants[0].cidr_ip:
                     # this is rule to permit in another security group
@@ -187,7 +196,9 @@ class SecGroup:
                                                None)
 
                 current_rules[group.name].append(current_rule)
-        print json.dumps(current_rules)
+        # pprint.pprint(current_rules)
+        # print json.dumps(current_rules)
+        return current_rules
 
 
 
@@ -200,15 +211,32 @@ class SecGroup:
 # load security group info from file
 # TODO: I want this to be configurable as a cli switch
 # open file
+json_rules_file = sys.argv[1]
 
-# do some work here:
-# create the security groups
+myrules = json.load(open(json_rules_file, 'r'))
 
-mysg = SecGroup()
+# if there is a default group, pop it off to be applied to all groups
+default_rules = myrules.pop('default_rules')
 
-for sg in config.SECURITY_GROUPS:
-    # print sg[0]
-    # print sg[1]
-    # print sg[2]
-    group = mysg.get_or_create_security_group(sg[0], sg[1])
-    mysg.update_security_group(group, sg[2])
+mygroups = myrules.keys()
+
+mysgs = SecGroup()
+
+# make ruleless security groups first
+print "\nCreating missing security groups..."
+for sg in mygroups:
+    # print sg
+    group = mysgs.get_or_create_security_group(sg, sg)
+
+
+print "\nApplying and Revoking rules..."
+# now apply rules (that may depend on having created sgs)
+for sg in mygroups:
+    print sg
+    group = mysgs.get_or_create_security_group(sg, sg)
+
+    # make the expected rules list into the collection
+    rules = default_rules + myrules[sg]
+    rules = list(mysgs.SecurityGroupRule(**item) for item in rules)
+
+    mysgs.update_security_group(group, rules)
