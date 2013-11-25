@@ -10,9 +10,9 @@ Config management for AWS SG rules, if you will.
 
 Usage
 ---
-* Add rules to config.py
-* Add security group names, description and a link back to the rules after the rules tuples
-    - Add them in the order they need to be created so addtions don't fail
+* Add rules to a json rules file as per example_rules.json
+* Rules can have a default section that are applied to all security groups subsequently
+* Add security group names and a link back to the rules after the rules tuples
 
 TODO
 ---
@@ -20,7 +20,6 @@ LOTS
 * Pull back existing rules from AWS and populate config file
 * add cli options for security group matching
 * add cli options for config file
-* change config file format (probably to json yaml)
 * add cli passing in new rules file format
 
 ** DISCLAIMER
