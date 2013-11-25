@@ -1,0 +1,42 @@
+{
+    "default_rules": [
+        {
+        "ip_protocol": "tcp",
+        "from_port": "22",
+        "to_port": "22",
+        "cidr_ip": "0.0.0.0/0",
+        "src_group_name": "<AWSACCOUNTID>/<SGID>"
+        }
+    ],
+    "application": [
+        {
+        "ip_protocol": "tcp",
+        "from_port": "8080",
+        "to_port": "8080",
+        "cidr_ip": "<HOMEIP>",
+        "src_group_name": null
+        },
+        {
+        "ip_protocol": "tcp",
+        "from_port": "8080",
+        "to_port": "8080",
+        "cidr_ip": "<OFFICEIP>",
+        "src_group_name": null
+        },
+        {
+        "ip_protocol": "tcp",
+        "from_port": "8080",
+        "to_port": "8080",
+        "cidr_ip": "<OTHERIP>",
+        "src_group_name": null
+        },
+        {
+        "ip_protocol": "tcp",
+        "from_port": "5671",
+        "to_port": "5671",
+        "cidr_ip": "0.0.0.0/0",
+        "src_group_name": "<SGID>
+        }
+    ]
+}
+
